@@ -1,5 +1,9 @@
 %YAML:1.0
 ---
+# 相机类型配置
+# 可选值: "hikvision" (海康相机), "zed" (ZED相机)
+camera_type: "zed"
+
 # 相机内参 (示例)
 camera_matrix: !!opencv-matrix
   rows: 3

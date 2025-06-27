@@ -17,14 +17,18 @@ int main(int argc, char **argv)
     // 基本用法提示
     const std::string usage =
         std::string("用法: ") + argv[0] + " <mode> [path] [config.yaml]\n" +
-        "  mode: video | image | camera\n" +
+        "  mode: video | image | camera | camera_zed | camera_hik\n" +
         "  当 mode 为 video 时, [path] 为视频文件路径\n" +
         "  当 mode 为 image 时, [path] 为图片文件路径\n" +
-        "  当 mode 为 camera 时, 不需要 [path] 参数\n" +
+        "  当 mode 为 camera 时, 使用配置文件中的相机类型\n" +
+        "  当 mode 为 camera_zed 时, 强制使用ZED相机\n" +
+        "  当 mode 为 camera_hik 时, 强制使用海康相机\n" +
         "示例:\n" +
         "  " + argv[0] + " video myvideo.mp4 config.yaml\n" +
         "  " + argv[0] + " image img.png\n" +
-        "  " + argv[0] + " camera config.yaml";
+        "  " + argv[0] + " camera config.yaml\n" +
+        "  " + argv[0] + " camera_zed config.yaml\n" +
+        "  " + argv[0] + " camera_hik config.yaml";
 
     // 至少需要一个 mode 参数
     if (argc < 2)
@@ -37,7 +41,7 @@ int main(int argc, char **argv)
     std::string inputPath;          // 对 camera 模式可为空
     std::string configPath;
 
-    if (mode == "camera")
+    if (mode == "camera" || mode == "camera_zed" || mode == "camera_hik")
     {
         // camera 模式下, 第 2 个参数若存在则视为 config.yaml
         if (argc >= 3)
@@ -89,11 +93,24 @@ int main(int argc, char **argv)
     }
     else if (mode == "camera")
     {
-        runTrajectorySolverCamera(cfg);
+        // 使用配置文件中的相机类型
+        runTrajectorySolverCameraInterface(cfg);
+    }
+    else if (mode == "camera_zed")
+    {
+        // 强制使用ZED相机
+        cout << "强制使用ZED相机" << endl;
+        runTrajectorySolverCameraType("zed", cfg);
+    }
+    else if (mode == "camera_hik")
+    {
+        // 强制使用海康相机
+        cout << "强制使用海康相机" << endl;
+        runTrajectorySolverCameraType("hikvision", cfg);
     }
     else
     {
-        cerr << "未知模式: " << mode << " (需要 video | image | camera)" << endl;
+        cerr << "未知模式: " << mode << " (需要 video | image | camera | camera_zed | camera_hik)" << endl;
         return -1;
     }
 

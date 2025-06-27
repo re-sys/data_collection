@@ -14,6 +14,9 @@ struct Config {
     cv::Mat K;              // 内参矩阵 3x3
     cv::Mat distCoeffs;     // 畸变系数
 
+    // 相机类型配置
+    std::string cameraType = "hikvision";  // 相机类型: "hikvision", "zed"
+
     // ArUco 参数
     int   arucoDictId   = cv::aruco::DICT_4X4_50;
     float arucoMarkerLength = 0.05f;  // 单位: m

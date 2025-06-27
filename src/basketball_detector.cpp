@@ -10,9 +10,9 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-// 构造函数 (使用默认参数)
+// 构造函数
 BasketballDetector::BasketballDetector() {
-    initKalmanFilter();
+    // 不再需要初始化Kalman滤波器
 }
 
 void BasketballDetector::setHSVRange(const cv::Scalar &low, const cv::Scalar &high)
@@ -55,104 +55,46 @@ void BasketballDetector::setRansacParams(int minInliers, float maxJumpPixels, in
 
 void BasketballDetector::resetTracking()
 {
-    hasKalman_ = false;
+    hasTracking_ = false;
     lostFrameCount_ = 0;
+    lastCenter_ = cv::Point2f(0, 0);
+    lastRadius_ = 0.0f;
 }
 
-void BasketballDetector::initKalmanFilter()
+void BasketballDetector::updateSmoothing(const cv::Point2f& center, float radius)
 {
-    // 状态向量: [x, y, radius, vx, vy, vr] (位置 + 速度)
-    int stateSize = 6;
-    // 测量向量: [x, y, radius] (只测量位置)
-    int measurementSize = 3;
-    // 控制向量: 0 (无控制输入)
-    int controlSize = 0;
-    
-    kalmanFilter_ = cv::KalmanFilter(stateSize, measurementSize, controlSize);
-    
-    // 状态转移矩阵 A
-    kalmanFilter_.transitionMatrix = cv::Mat::eye(stateSize, stateSize, CV_32F);
-    kalmanFilter_.transitionMatrix.at<float>(0, 3) = 1.0f; // x += vx
-    kalmanFilter_.transitionMatrix.at<float>(1, 4) = 1.0f; // y += vy
-    kalmanFilter_.transitionMatrix.at<float>(2, 5) = 1.0f; // radius += vr
-    
-    // 测量矩阵 H
-    kalmanFilter_.measurementMatrix = cv::Mat::zeros(measurementSize, stateSize, CV_32F);
-    kalmanFilter_.measurementMatrix.at<float>(0, 0) = 1.0f; // 测量x
-    kalmanFilter_.measurementMatrix.at<float>(1, 1) = 1.0f; // 测量y
-    kalmanFilter_.measurementMatrix.at<float>(2, 2) = 1.0f; // 测量radius
-    
-    // 过程噪声协方差矩阵 Q
-    kalmanFilter_.processNoiseCov = cv::Mat::eye(stateSize, stateSize, CV_32F) * 1e-3f;
-    kalmanFilter_.processNoiseCov.at<float>(3, 3) = 1e-2f; // 速度噪声
-    kalmanFilter_.processNoiseCov.at<float>(4, 4) = 1e-2f;
-    kalmanFilter_.processNoiseCov.at<float>(5, 5) = 1e-3f;
-    
-    // 测量噪声协方差矩阵 R
-    kalmanFilter_.measurementNoiseCov = cv::Mat::eye(measurementSize, measurementSize, CV_32F) * 1e-1f;
-    
-    // 后验误差协方差矩阵 P
-    kalmanFilter_.errorCovPost = cv::Mat::eye(stateSize, stateSize, CV_32F) * 1.0f;
-    
-    // 初始状态
-    kalmanFilter_.statePost = cv::Mat::zeros(stateSize, 1, CV_32F);
-}
-
-void BasketballDetector::resetKalmanFilter(const cv::Point2f& center, float radius)
-{
-    kalmanFilter_.statePost.at<float>(0) = center.x;
-    kalmanFilter_.statePost.at<float>(1) = center.y;
-    kalmanFilter_.statePost.at<float>(2) = radius;
-    kalmanFilter_.statePost.at<float>(3) = 0.0f; // vx
-    kalmanFilter_.statePost.at<float>(4) = 0.0f; // vy
-    kalmanFilter_.statePost.at<float>(5) = 0.0f; // vr
-    
-    hasKalman_ = true;
-    lostFrameCount_ = 0;
-}
-
-void BasketballDetector::updateKalmanFilter(const cv::Point2f& center, float radius)
-{
-    if (!hasKalman_)
+    if (!hasTracking_)
     {
-        // 首次检测到目标，初始化Kalman滤波
-        resetKalmanFilter(center, radius);
+        // 首次检测到目标，初始化跟踪
+        lastCenter_ = center;
+        lastRadius_ = radius;
+        hasTracking_ = true;
+        lostFrameCount_ = 0;
         return;
     }
     
     // 检查跳变
-    cv::Point2f currentCenter;
-    currentCenter.x = kalmanFilter_.statePost.at<float>(0);
-    currentCenter.y = kalmanFilter_.statePost.at<float>(1);
-    
-    float jump = std::hypot(center.x - currentCenter.x, center.y - currentCenter.y);
+    float jump = std::hypot(center.x - lastCenter_.x, center.y - lastCenter_.y);
     if (jump < maxJumpPixels_)  // 合理的跳变范围内才更新
     {
-        // 准备测量向量
-        cv::Mat measurement = cv::Mat::zeros(3, 1, CV_32F);
-        measurement.at<float>(0) = center.x;
-        measurement.at<float>(1) = center.y;
-        measurement.at<float>(2) = radius;
+        // 简单的平滑处理：使用加权平均
+        float alpha = 0.15f; // 平滑因子，可以调整
+        lastCenter_.x = alpha * lastCenter_.x + (1.0f - alpha) * center.x;
+        lastCenter_.y = alpha * lastCenter_.y + (1.0f - alpha) * center.y;
+        lastRadius_ = alpha * lastRadius_ + (1.0f - alpha) * radius;
         
-        // Kalman预测
-        cv::Mat prediction = kalmanFilter_.predict();
-        
-        // Kalman更新
-        cv::Mat corrected = kalmanFilter_.correct(measurement);
-        
-        lostFrameCount_ = 0; // 成功更新滤波，重置丢失计数
+        lostFrameCount_ = 0; // 成功更新，重置丢失计数
     }
     else
     {
         // 跳变过大，只进行预测，不更新
-        kalmanFilter_.predict();
         lostFrameCount_++;
     }
     
-    // 检查是否需要重置滤波
+    // 检查是否需要重置跟踪
     if (lostFrameCount_ > maxLostFrames_)
     {
-        hasKalman_ = false;
+        hasTracking_ = false;
         lostFrameCount_ = 0;
     }
 }
@@ -291,17 +233,16 @@ BasketballDetector::Result BasketballDetector::detect(const cv::Mat &frameBGR, b
             out.radius = bestRadius;
             out.inliers = bestInliers;
             
-            // 更新Kalman滤波器
-            updateKalmanFilter(bestCenter, bestRadius);
+            // 更新平滑处理
+            updateSmoothing(bestCenter, bestRadius);
         }
     }
 
     // 设置平滑结果
-    if (hasKalman_)
+    if (hasTracking_)
     {
-        out.smoothedCenter.x = kalmanFilter_.statePost.at<float>(0);
-        out.smoothedCenter.y = kalmanFilter_.statePost.at<float>(1);
-        out.smoothedRadius = std::max(1.0f, std::min(1000.0f, kalmanFilter_.statePost.at<float>(2)));
+        out.smoothedCenter = lastCenter_;
+        out.smoothedRadius = lastRadius_;
         out.hasTracking = true;
     }
     else

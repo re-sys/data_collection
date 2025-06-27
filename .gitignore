@@ -1,13 +1,44 @@
-frames/
-build/
-./videos
-./pictures
-./videos2
-./frames
-./pictures2
-./.vscode
-./aruco
-*.avi    
-.jpg
+# Build directories
 build/
 frames/build/
+
+# IDE files
+.vscode/
+*.swp
+*.swo
+
+# Camera data files
+frames/
+hoop_frames/
+hoop_videos/
+videos/
+pictures/
+videos2/
+pictures2/
+aruco/
+
+# Video files
+*.avi
+*.mp4
+*.mov
+*.mkv
+*.wmv
+*.flv
+
+# Image files
+*.jpg
+*.jpeg
+*.png
+*.bmp
+*.tiff
+*.tif
+*.gif
+
+# Data files
+*.csv
+*.log
+*.dat
+
+# OS files
+.DS_Store
+Thumbs.db

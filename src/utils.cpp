@@ -12,6 +12,14 @@ bool loadConfig(const std::string &filePath, Config &cfg)
         return false;
     }
 
+    // 加载相机类型配置
+    if (!fs["camera_type"].empty()) {
+        fs["camera_type"] >> cfg.cameraType;
+        std::cout << "相机类型: " << cfg.cameraType << std::endl;
+    } else {
+        std::cout << "未指定相机类型，使用默认值: " << cfg.cameraType << std::endl;
+    }
+
     fs["camera_matrix"] >> cfg.K;
     fs["dist_coeffs"] >> cfg.distCoeffs;
     fs["aruco_dict_id"] >> cfg.arucoDictId;
